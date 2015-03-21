@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Static Visualization Viewer</title>
+    <style>
+
+      svg {
+        float: left;
+        margin: 30px;
+      }
+
+      rect {
+        shape-rendering: crispEdges;
+      }
+
+      select {
+        margin-top: 30px;
+      }
+
+    </style>
+  </head>
+  <body>
+    <svg id="svg"></svg>
+    <select id="selector"></select>
+
+    <script src="http://d3js.org/d3.v3.min.js"></script>
+    <script>
+
+      // Setup canvas
+      var width = height = 380;
+      var npts = 12;
+
+      // Scaling information
+      var xscale = d3.scale.ordinal()
+        .domain(d3.range(npts))
+        .rangeBands([0, width], 0, 2);
+      var yscale = d3.scale.linear()
+        .range([height, 0]);
+      var x = function(d) { return xscale(d.x); },
+          y = function(d) { return yscale(d.y); };
+
+      // SVG container elements
+      var svg = d3.select('#svg').attr({
+        width: width + 2,
+        height: height + 2
+      });
+      svg.append('g')
+        .attr({transform: "translate(1,1)"})
+        .append('rect').attr({
+          width: width,
+          height: height,
+          fill: 'white',
+          stroke: 'black'
+        });
+      var rectContainer = svg.append('g').attr({transform: "translate(1,1)"});
+      var circleContainer = svg.append('g').attr({transform: "translate(1,1)"});
+
+      // Render a dataset
+      // @param data: { "highlighted": list of circle positions,
+      //                       "bars": list of bar positions }
+      var render = function(data) {
+        var rects = rectContainer.selectAll('rect').data(data.bars);
+
+        rects.attr({
+          y: y,
+          height: function(d) { return height - y(d); }
+        });
+
+        rects.enter().append('rect').attr({
+          x: x,
+          y: y,
+          width: xscale.rangeBand(),
+          height: function(d) { return height - y(d); },
+          fill: 'white',
+          stroke: 'black'
+        });
+
+        rects.exit().remove();
+
+        var circles = circleContainer.selectAll('circle').data(data.highlighted);
+
+        circles.attr({
+          cx: function(d) { return x(d) + xscale.rangeBand() / 2},
+          cy: y
+        });
+
+        circles.enter().append('circle').attr({
+          cx: function(d) { return x(d) + xscale.rangeBand() / 2},
+          cy: y,
+          r: 3,
+          fill: 'white',
+          stroke: 'black'
+        });
+
+        circles.exit().remove();
+      };
+
+      // Load test data from json file, and render it
+      var dataset;
+      var selectData = function() {
+        render(dataset[this.value]);
+      }
+      var dataSelector = document.querySelector('#selector');
+      dataSelector.addEventListener('click', selectData);
+
+      d3.json('test_data.json', function(error, json) {
+        if (error) return console.error(error);
+        dataset = json;
+        var option;
+        for (data in dataset) {
+          option = document.createElement('option');
+          option.text = data;
+          option.value = data;
+          dataSelector.appendChild(option);
+        }
+        render(dataset[dataSelector.value]);
+      });
+
+      // Randomly generates a dataset
+      // @param type: Type of chart data to produce (eg. "adjacent")
+      // @param percent: True percentage of reference height to test
+      // @return JS object of data
+      var generateChartData = function(type, percent) {
+        var data = {};
+        var random = function(i) { return {x: i, y: Math.random() * (0.95 - 0.05) + 0.05}; };
+
+        if (type == "adjacent") {
+          var group1, group2;
+          do {
+            group1 = d3.range(5).map(random);
+            group1[2].y = group1[1].y * percent;
+          } while (group1[2].y < 0.05);
+
+          group2 = d3.range(7,12).map(random);
+
+          data['highlighted'] = [{x: 1, y: 0.03}, {x: 2, y: 0.03}];
+          data['bars'] = group1.concat(group2);
+        }
+        else if (type == "separated") {
+          var group1, group2;
+          do {
+            group1 = d3.range(5).map(random);
+            group2 = d3.range(7,12).map(random);
+            group2[1].y = group1[1].y * percent;
+          } while (group2[1].y < 0.05);
+
+          data['highlighted'] = [{x: 1, y: 0.03}, {x: 8, y: 0.03}];
+          data['bars'] = group1.concat(group2);
+        }
+
+        return data;
+      }
+
+      // Renders a randomly generated dataset, and returns a JSON string
+      // @param type: Type of chart data to produce (eg. "adjacent")
+      // @param percent: True percentage of reference height to test
+      // @return JSON string representation of data rendered
+      var renderChartData = function(type, percent) {
+        var data = generateChartData(type, percent);
+        render(data);
+        return JSON.stringify(data);
+      }
+
+    </script>
+  </body>
+</html>
